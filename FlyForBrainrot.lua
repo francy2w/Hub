@@ -52,7 +52,7 @@ local Window = Library:Window({
 
     Theme = {
 
-        Accent = "#FF007F", -- Default accent
+        Accent = "#FF4500", -- Default accent
 
         Background = "#0D0D0D",
 
@@ -1088,9 +1088,9 @@ ExtraToolsPage:Button({
 
 SettingsPage:Section('Script Information')
 
-SettingsPage:Paragraph({ Title = 'Developer', Desc = 'Francy2468' })
+SettingsPage:Paragraph({ Title = 'Developer', Desc = 'Francy' })
 
-SettingsPage:Paragraph({ Title = 'Version', Desc = '6.0 Professional Final' })
+SettingsPage:Paragraph({ Title = 'Version', Desc = 'idk to' })
 
 SettingsPage:Paragraph({ Title = 'Last Updated', Desc = '2026-03-15' })
 
