@@ -1,0 +1,578 @@
+local Plr = game:GetService("Players").LocalPlayer
+local RS   = game:GetService("ReplicatedStorage")
+local UIS  = game:GetService("UserInputService")
+
+-- ============================================================
+-- Load UI first (don't block on remotes)
+-- ============================================================
+local Library
+do
+    local ok, err = pcall(function()
+        Library = loadstring(game:HttpGet(
+            "https://raw.githubusercontent.com/JScripter-Lua/XovaModedLib/refs/heads/main/VitaLib_Enhanced.lua"
+        ))()
+    end)
+    if not ok or not Library then
+        warn("[Catmio] UI failed to load: " .. tostring(err))
+        return
+    end
+end
+
+local Window = Library:Window({
+    Title    = "Aura Ascension | Catmio",
+    SubTitle = "made by the tuffest cat Francy",
+    Size     = UDim2.new(0, 520, 0, 400),
+    ToggleKey = Enum.KeyCode.RightControl,
+    BbIcon   = "settings",
+    AutoScale = true,
+    Scale    = 1.3,
+    ExecIdentifyShown = true,
+    Theme    = {
+        Accent     = "#FF4500",
+        Background = "#0D0D0D",
+        Row        = "#111111",
+        Text       = "#FFFFFF",
+        SubText    = "#A3A3A3"
+    }
+})
+
+-- ============================================================
+-- Remotes (async, won't block UI)
+-- ============================================================
+local RebirthRemote, PingRemote, InactiveRemote
+local AFKTpRemote, ChestRemote, TickRemote, FXRemote
+
+task.spawn(function()
+    local ok, Comm = pcall(function()
+        return RS:WaitForChild("Communication", 15)
+    end)
+    if not ok or not Comm then
+        warn("[AuraHub] Communication not found")
+        return
+    end
+    local function sw(name)
+        local o, r = pcall(function() return Comm:WaitForChild(name, 10) end)
+        if not o or not r then warn("[AuraHub] Remote missing: " .. name) end
+        return r
+    end
+    RebirthRemote  = sw("Request Rebirth")
+    PingRemote     = sw("ActivePing")
+    InactiveRemote = sw("Inactivity")
+    AFKTpRemote    = sw("RequestAFKReturnTeleport")
+    ChestRemote    = sw("ChestCommunication")
+    TickRemote     = sw("Tick")
+    FXRemote       = sw("FX")
+
+    if TickRemote then
+        TickRemote.OnClientEvent:Connect(function(amt)
+            pcall(function()
+                if type(amt) == "number" then
+                    S.tickAmt  = amt
+                    S.sessAura = S.sessAura + amt
+                end
+            end)
+        end)
+    end
+
+    -- Hook AFK remotes after they load
+    pcall(function()
+        if AFKTpRemote then
+            local old = hookfunction(AFKTpRemote.FireServer, newcclosure(function(self,...)
+                if self == AFKTpRemote then return end
+                return old(self,...)
+            end))
+        end
+    end)
+    pcall(function()
+        if InactiveRemote then
+            local old2 = hookfunction(InactiveRemote.FireServer, newcclosure(function(self,...)
+                if self == InactiveRemote then return end
+                return old2(self,...)
+            end))
+        end
+    end)
+end)
+
+-- ============================================================
+-- State
+-- ============================================================
+local S = {
+    farming=false, rebirthing=false, antiAfk=true,
+    autoChest=false, speedOn=false, dismiss=false,
+    curZone="None", tickAmt=0, sessAura=0, sessRebirths=0,
+    sessStart=os.clock(), rebirthDelay=1, speedVal=50,
+    manualZone="Auto", rebLoop=false, farmLoop=false,
+    chestLoop=false, afkStarted=false
+}
+
+local ZoneReqs = {
+    {name="Fire Bath",     req=1e8},
+    {name="Dark Lava",     req=1e15},
+    {name="Ancient Ruins", req=1e20},
+    {name="Electra Field", req=1e26},
+    {name="Divine Realm",  req=1e30},
+    {name="Frost Heaven",  req=1e35},
+    {name="Fallen Star",   req=1e40}
+}
+
+local Ranks = {
+    {n="Noob",m=2,r=0},{n="No Aura",m=8,r=10},{n="Sigma",m=28,r=100},
+    {n="Aura Farmer",m=95,r=1e3},{n="Mogger",m=320,r=1e4},
+    {n="Aura Maestro",m=1050,r=1.5e5},{n="Chad",m=3400,r=2e6},
+    {n="Main Character",m=16000,r=2.5e7},{n="Shadow",m=24000,r=8e7},
+    {n="Ascendant",m=40000,r=1e8},{n="Conqueror",m=95000,r=1e9},
+    {n="Vanguard",m=220000,r=1e10},{n="Chromatic",m=520000,r=1e11},
+    {n="Sentinel",m=1250000,r=1e12},{n="Overlord",m=3e6,r=1e13},
+    {n="Dominator",m=5.5e6,r=5e13},{n="Final Boss",m=1.762e7,r=1e14},
+    {n="Paragon",m=3.876e7,r=1e15},{n="Imperator",m=8.528e7,r=1e16},
+    {n="Supreme",m=1.876e8,r=1e17},{n="Archeox",m=3.2e8,r=8e17},
+    {n="Emperor",m=7.8e8,r=5e18},{n="Celestial",m=9e8,r=2e19},
+    {n="Superior",m=1.2e9,r=4e19},{n="Menace",m=1.45e9,r=6.5e19},
+    {n="Grim Reaper",m=1.75e9,r=1e20},{n="The Honored One",m=2.15e9,r=1.4e20},
+    {n="Antagonist",m=2.6e9,r=1.85e20},{n="Deltaversal",m=3.1e9,r=2.2e20},
+    {n="Chronomancer",m=4.2e9,r=2.6e20},{n="ArchWarrior",m=4.393e9,r=3e20},
+    {n="Divine",m=7e9,r=8e20},{n="Cosmic",m=1.2e10,r=3e21},
+    {n="APEX",m=2.1e10,r=1e22},{n="Heptagon",m=3.8e10,r=4e22},
+    {n="Transcendent",m=6.5e10,r=1.5e23},{n="God of Aura",m=1.1e11,r=6e23},
+    {n="Anti-Hero",m=1.9e11,r=2e24},{n="Nemesis",m=3.2e11,r=6e24},
+    {n="Malevolent",m=5.5e11,r=1.8e25},{n="The Cursed One",m=9e11,r=5e25},
+    {n="Eradicator",m=1.4e12,r=1.4e26},{n="Abyss Lord",m=1.7e12,r=3.6e26},
+    {n="Hyperion",m=2.1e12,r=9e26},{n="Redacted",m=2.5e12,r=2.2e27},
+    {n="E N T I T Y",m=3e12,r=5.2e27},{n="Superhuman",m=3.6e12,r=1.2e28},
+    {n="Sendevian",m=4.2e12,r=2.8e28},{n="Awakening",m=5e12,r=6.4e28},
+    {n="Prodigy",m=5.8e12,r=1.5e29},{n="Mastermind",m=8e12,r=3.2e29},
+    {n="Too Much Aura",m=1.1e13,r=7e29},{n="Omniscient",m=1.5e13,r=1.3e30},
+    {n="Absolute",m=2.2e13,r=3e30},{n="Almighty",m=2.7e13,r=7e30},
+    {n="Metaversal",m=3.2e13,r=1.6e31},{n="Ultrapotent",m=3.9e13,r=3.8e31},
+    {n="Powerious",m=4.6e13,r=9e31},{n="Anthropeak",m=5.5e13,r=2.1e32},
+    {n="I N F I N I T E",m=6.5e13,r=5e32},{n="S I N G U L A R I T Y",m=9e13,r=1.2e33},
+    {n="L I M I T L E S S",m=1.3e14,r=3e33},{n="B O U N D L E S S",m=1.8e14,r=7e33},
+    {n="F A L L E N   A N G E L",m=2.5e14,r=1.7e34},{n="The Ultimate",m=3.5e14,r=4e34},
+    {n="Simply Better",m=5e14,r=9.5e34},{n="Deity",m=7e14,r=2.3e35},
+    {n="The Ascension",m=1e15,r=8e35},{n="Nightmare",m=1.4e15,r=4e38},
+    {n="True Genesis",m=2e15,r=7e39},{n="Abomination",m=2.8e15,r=5e41}
+}
+
+-- ============================================================
+-- Helpers
+-- ============================================================
+local function fmt(n)
+    if not n or n == 0 then return "0" end
+    if n < 0 then return "-"..fmt(-n) end
+    local sf = {"","K","M","B","T","Qa","Qi","Sx","Sp","Oc","No","Dc","Ud","Dd","Txd","Exd","VgD"}
+    if n < 1000 then return tostring(math.floor(n)) end
+    local ok, r = pcall(function()
+        local e = math.clamp(math.floor(math.log10(math.max(n,1))/3),1,#sf-1)
+        local v = n/(10^(e*3))
+        local d = v<10 and 2 or (v<100 and 1 or 0)
+        return string.format("%."..d.."f%s", v, sf[e+1])
+    end)
+    return ok and r or tostring(n)
+end
+
+local function getRoot()
+    local ok,r = pcall(function() local c=Plr.Character return c and c:FindFirstChild("HumanoidRootPart") end)
+    return ok and r or nil
+end
+local function getHum()
+    local ok,r = pcall(function() local c=Plr.Character return c and c:FindFirstChildOfClass("Humanoid") end)
+    return ok and r or nil
+end
+local function getAura()
+    local ok,r = pcall(function() return Plr:GetAttribute("Aura") or 0 end)
+    return ok and r or 0
+end
+local function getRebirths()
+    local ok,r = pcall(function() return Plr:GetAttribute("Rebirths") or 0 end)
+    return ok and r or 0
+end
+local function getRank(a)
+    local out=Ranks[1]
+    for i=1,#Ranks do if a>=Ranks[i].r then out=Ranks[i] else break end end
+    return out
+end
+local function getRankIdx(a)
+    local idx=1
+    for i=1,#Ranks do if a>=Ranks[i].r then idx=i else break end end
+    return idx
+end
+local function getProgress(a)
+    local i=getRankIdx(a)
+    if i>=#Ranks then return 1 end
+    return math.clamp((a-Ranks[i].r)/(Ranks[i+1].r-Ranks[i].r),0,1)
+end
+
+local cachedZones
+local function loadZones()
+    if cachedZones then return cachedZones end
+    local ok,r = pcall(function()
+        local ta = workspace:FindFirstChild("Training Areas")
+        if not ta then return {} end
+        local out={}
+        for _,z in ipairs(ta:GetChildren()) do
+            local hb=z:FindFirstChild("AreaHitbox")
+            if hb then
+                local req=0
+                for _,zr in ipairs(ZoneReqs) do if zr.name==z.Name then req=zr.req break end end
+                table.insert(out,{name=z.Name,req=req,pos=hb.Position})
+            end
+        end
+        table.sort(out,function(a,b) return a.req<b.req end)
+        return out
+    end)
+    cachedZones=(ok and r) or {}
+    return cachedZones
+end
+
+local function getPadCF()
+    local ok,r=pcall(function()
+        local pad=workspace:FindFirstChild("RebirthPad")
+        if pad then local tp=pad:FindFirstChild("TouchPart") if tp then return tp.CFrame+Vector3.new(0,3,0) end end
+        return CFrame.new(0,50,0)
+    end)
+    return (ok and r) or CFrame.new(0,50,0)
+end
+local function bestZone(a,zones)
+    for i=#zones,1,-1 do if a>=zones[i].req then return zones[i] end end
+    return zones[1]
+end
+local function nextUnlock(a,zones)
+    for _,z in ipairs(zones) do if a<z.req then return z end end
+end
+local function tp(cf)
+    pcall(function() local r=getRoot() if r then r.CFrame=cf end end)
+end
+local function tpZone(z)
+    pcall(function() if z and z.pos then tp(CFrame.new(z.pos+Vector3.new(0,5,0))) S.curZone=z.name end end)
+end
+local function fireRebirth()
+    if not RebirthRemote then return false end
+    local ok,r=pcall(function() return RebirthRemote:InvokeServer() end)
+    return ok and r
+end
+
+-- ============================================================
+-- Core loops
+-- ============================================================
+local function doManualRebirth()
+    pcall(function()
+        local root=getRoot() if not root then return end
+        local saved=root.CFrame
+        tp(getPadCF()) task.wait(0.35)
+        local ok=fireRebirth() task.wait(0.25)
+        if ok then S.sessRebirths=S.sessRebirths+1 end
+        if S.farming then local bz=bestZone(getAura(),loadZones()) if bz then tpZone(bz) else tp(saved) end
+        else tp(saved) end
+    end)
+end
+
+local function startFarmLoop()
+    if S.farmLoop then return end S.farmLoop=true
+    task.spawn(function()
+        local zones=loadZones()
+        while S.farming do
+            pcall(function()
+                local a=getAura()
+                local target=nil
+                if S.manualZone~="Auto" then
+                    for _,z in ipairs(zones) do if z.name==S.manualZone then target=z break end end
+                end
+                if not target then target=bestZone(a,zones) end
+                if target then
+                    local root=getRoot()
+                    if root then
+                        if (root.Position-target.pos).Magnitude>30 then tpZone(target)
+                        else S.curZone=target.name end
+                    end
+                end
+            end)
+            task.wait(2)
+        end
+        S.farmLoop=false
+    end)
+end
+
+local function startRebirthLoop()
+    if S.rebLoop then return end S.rebLoop=true
+    task.spawn(function()
+        while S.rebirthing do
+            pcall(function()
+                local a=getAura()
+                if a>=1000 then
+                    local go=true
+                    if S.tickAmt>0 and a<5000 and (1000/S.tickAmt)>30 then go=false end
+                    if go then
+                        tp(getPadCF()) task.wait(0.35)
+                        local ok=fireRebirth()
+                        if ok then S.sessRebirths=S.sessRebirths+1 end
+                        task.wait(S.rebirthDelay)
+                        if S.farming then local bz=bestZone(getAura(),loadZones()) if bz then tpZone(bz) end end
+                        task.wait(0.3)
+                    end
+                end
+            end)
+            task.wait(0.8)
+        end
+        S.rebLoop=false
+    end)
+end
+
+local function startAntiAfk()
+    if S.afkStarted then return end S.afkStarted=true
+    task.spawn(function()
+        while S.antiAfk do
+            pcall(function() if PingRemote then PingRemote:FireServer(false) end end)
+            pcall(function() local r=getRoot() if r and r.Anchored then r.Anchored=false end end)
+            pcall(function() game:GetService("VirtualInputManager"):SendMouseMoveEvent(5,5,game) end)
+            task.wait(12)
+        end
+        S.afkStarted=false
+    end)
+end
+
+local function startChestLoop()
+    if S.chestLoop then return end S.chestLoop=true
+    task.spawn(function()
+        while S.autoChest do
+            pcall(function() if ChestRemote then ChestRemote:FireServer("Claim") end end)
+            task.wait(305)
+        end
+        S.chestLoop=false
+    end)
+end
+
+local function startDismissLoop()
+    task.spawn(function()
+        while S.dismiss do
+            pcall(function()
+                local pg=Plr:FindFirstChild("PlayerGui") if not pg then return end
+                local tut=pg:FindFirstChild("Tutorial") if tut then tut.Enabled=false end
+                for _,gui in ipairs(pg:GetChildren()) do
+                    if gui:IsA("ScreenGui") then
+                        for _,fr in ipairs(gui:GetDescendants()) do
+                            if fr:IsA("TextButton") then
+                                local t=fr.Text:lower()
+                                if t=="x" or t=="close" or t=="dismiss" or t=="ok" then
+                                    pcall(function() fr:FireMouseButton1Click() end)
+                                    pcall(function() fr.Visible=false end)
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+            task.wait(3)
+        end
+    end)
+end
+
+-- ============================================================
+-- Character & input events
+-- ============================================================
+Plr.CharacterAdded:Connect(function(c)
+    pcall(function()
+        task.wait(1)
+        if S.antiAfk then local r=c:WaitForChild("HumanoidRootPart",5) if r and r.Anchored then r.Anchored=false end end
+        if S.farming then task.wait(0.5) local bz=bestZone(getAura(),loadZones()) if bz then tpZone(bz) end end
+        if S.speedOn then local h=c:WaitForChild("Humanoid",5) if h then h.WalkSpeed=S.speedVal end end
+    end)
+end)
+
+UIS.InputBegan:Connect(function(inp,gpe)
+    pcall(function()
+        if gpe then return end
+        if inp.KeyCode==Enum.KeyCode.R then task.spawn(doManualRebirth) end
+    end)
+end)
+
+-- ============================================================
+-- PAGES
+-- ============================================================
+
+-- ---- FARMING -----------------------------------------------
+local FarmPage = Window:NewPage({
+    Title="Farming", Desc="Zone & speed control", Icon="zap", TabImage="#7C3AED"
+})
+
+FarmPage:Section("Zone Farming")
+
+FarmPage:Toggle({
+    Title="Smart Auto-Farm", Desc="Teleports to the best available zone", Value=false,
+    Callback=function(v) pcall(function() S.farming=v if v then startFarmLoop() end end) end
+})
+
+local zNames={"Auto"}
+for _,z in ipairs(ZoneReqs) do table.insert(zNames,z.name) end
+FarmPage:Dropdown({
+    Title="Zone Override", List=zNames, Value="Auto",
+    Callback=function(v) pcall(function() S.manualZone=v or "Auto" end) end
+})
+
+FarmPage:Section("Movement")
+
+FarmPage:Toggle({
+    Title="Speed Boost", Desc="Enable custom walk speed", Value=false,
+    Callback=function(v)
+        pcall(function()
+            S.speedOn=v
+            local h=getHum() if h then h.WalkSpeed=v and S.speedVal or 16 end
+        end)
+    end
+})
+
+FarmPage:Slider({
+    Title="Walk Speed", Min=16, Max=200, Rounding=0, Value=50,
+    Callback=function(v)
+        pcall(function()
+            S.speedVal=v
+            if S.speedOn then local h=getHum() if h then h.WalkSpeed=v end end
+        end)
+    end
+})
+
+-- ---- REBIRTH -----------------------------------------------
+local RebPage = Window:NewPage({
+    Title="Rebirth", Desc="Auto & manual rebirth", Icon="refresh-cw", TabImage="#059669"
+})
+
+RebPage:Section("Auto Rebirth")
+
+RebPage:Toggle({
+    Title="Aggressive Auto-Rebirth", Desc="rebirth", Value=false,
+    Callback=function(v) pcall(function() S.rebirthing=v if v then startRebirthLoop() end end) end
+})
+
+RebPage:Slider({
+    Title="seconds to wait for rebirth (s)", Min=0.5, Max=20, Rounding=1, Value=1,
+    Callback=function(v) pcall(function() S.rebirthDelay=v end) end
+})
+
+RebPage:Section("Manual")
+
+RebPage:Button({
+    Title="Rebirth Now", Desc="TP → Rebirth → Return  [R key]", Text="GO",
+    Callback=function() task.spawn(doManualRebirth) end
+})
+
+RebPage:Button({
+    Title="Fire Remote Only", Desc="No teleport", Text="Fire",
+    Callback=function()
+        task.spawn(function()
+            pcall(function()
+                local ok=fireRebirth()
+                Library:Notification({
+                    Title=ok and "Rebirth OK" or "Rebirth Failed",
+                    Desc=ok and "Success" or "Server rejected",
+                    Duration=2, Type=ok and "Success" or "Error"
+                })
+                if ok then S.sessRebirths=S.sessRebirths+1 end
+            end)
+        end)
+    end
+})
+
+-- ---- TELEPORT ----------------------------------------------
+local TPPage = Window:NewPage({
+    Title="Teleport", Desc="Zones & landmarks", Icon="map-pin", TabImage="#F59E0B"
+})
+
+task.spawn(function()
+    task.wait(4)
+    pcall(function()
+        local zones=loadZones()
+        TPPage:Section("Training Areas")
+        for _,z in ipairs(zones) do
+            TPPage:Button({
+                Title=z.name, Desc="Req: "..fmt(z.req), Text="TP",
+                Callback=function() pcall(function() tpZone(z) end) end
+            })
+        end
+        TPPage:Section("Landmarks")
+        TPPage:Button({
+            Title="Rebirth Pad", Desc="Main rebirth pad", Text="TP",
+            Callback=function() pcall(function() tp(getPadCF()) end) end
+        })
+        TPPage:Button({
+            Title="Chest", Desc="Map chest", Text="TP",
+            Callback=function()
+                pcall(function()
+                    local hb=workspace.Map.Chest.Hitbox
+                    tp(CFrame.new(hb.Position+Vector3.new(0,5,0)))
+                end)
+            end
+        })
+    end)
+end)
+
+-- ---- MISC --------------------------------------------------
+local MiscPage = Window:NewPage({
+    Title="Misc", Desc="Anti-AFK, chest, server", Icon="settings", TabImage="#DC2626"
+})
+
+MiscPage:Section("Anti-Cheat Bypass")
+
+MiscPage:Toggle({
+    Title="Anti-AFK", Desc="Prevents kick for inactivity", Value=true,
+    Callback=function(v) pcall(function() S.antiAfk=v if v then startAntiAfk() end end) end
+})
+
+MiscPage:Section("Automation")
+
+MiscPage:Toggle({
+    Title="Auto Chest Claim", Desc="Claims chest every 5 minutes", Value=false,
+    Callback=function(v) pcall(function() S.autoChest=v if v then startChestLoop() end end) end
+})
+
+MiscPage:Toggle({
+    Title="Auto-Dismiss Popups", Desc="Closes popups automatically", Value=false,
+    Callback=function(v) pcall(function() S.dismiss=v if v then startDismissLoop() end end) end
+})
+
+MiscPage:Section("Server")
+
+MiscPage:Button({
+    Title="this button does nothing", Desc="idk", Text="Flash",
+    Callback=function() pcall(function() if FXRemote then FXRemote:FireServer(Plr.UserId) end end) end
+})
+
+MiscPage:Button({
+    Title="Server Hop", Desc="Switch to a new server", Text="Hop",
+    Callback=function() pcall(function() game:GetService("TeleportService"):Teleport(game.PlaceId,Plr) end) end
+})
+
+MiscPage:Button({
+    Title="Rejoin", Desc="Reconnect to same server", Text="Rejoin",
+    Callback=function()
+        pcall(function()
+            game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId,game.JobId,Plr)
+        end)
+    end
+})
+
+-- ============================================================
+-- Maintenance loops
+-- ============================================================
+task.spawn(function()
+    while task.wait(1) do
+        pcall(function()
+            if S.speedOn then
+                local h=getHum()
+                if h and h.WalkSpeed~=S.speedVal then h.WalkSpeed=S.speedVal end
+            end
+            if S.antiAfk then
+                local r=getRoot()
+                if r and r.Anchored then r.Anchored=false end
+            end
+        end)
+    end
+end)
+
+startAntiAfk()
+
+pcall(function()
+    Library:Notification({
+        Title="Catmio",
+        Desc="Loaded! R = manual rebirth | RightCtrl = toggle UI",
+        Duration=5, Type="Success"
+    })
+end)
