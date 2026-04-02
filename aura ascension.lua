@@ -47,7 +47,7 @@ task.spawn(function()
         return RS:WaitForChild("Communication", 15)
     end)
     if not ok or not Comm then
-        warn("[AuraHub] Communication not found")
+        warn("[Catmio] Communication not found")
         return
     end
     local function sw(name)
@@ -438,12 +438,12 @@ local RebPage = Window:NewPage({
 RebPage:Section("Auto Rebirth")
 
 RebPage:Toggle({
-    Title="Aggressive Auto-Rebirth", Desc="rebirth", Value=false,
+    Title=" Auto-Rebirth", Desc="rebirth", Value=false,
     Callback=function(v) pcall(function() S.rebirthing=v if v then startRebirthLoop() end end) end
 })
 
 RebPage:Slider({
-    Title="seconds to wait for rebirth (s)", Min=0.5, Max=20, Rounding=1, Value=1,
+    Title="seconds to wait for rebirth (s)", Min=0.5, Max=60, Rounding=1, Value=1,
     Callback=function(v) pcall(function() S.rebirthDelay=v end) end
 })
 
