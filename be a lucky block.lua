@@ -4,7 +4,7 @@ local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/JScri
 -- ==========================================
 -- âš™ï¸ [ SETTINGS FOR UPDATES ] âš™ï¸
 -- ==========================================
-local TARGET_ZONE = "base14" 
+local TARGET_ZONE = "base15" 
 local SPAWN_POS = CFrame.new(715, 39, -2122)
 local WALK_POS = Vector3.new(710, 39, -2122)
 local RESPAWN_POS = CFrame.new(737, 39, -2118)
