@@ -219,3 +219,4 @@ Fluent:Notify({
 })
 
 SaveManager:LoadAutoloadConfig()
+print'contact @8oxu in discord for support'
