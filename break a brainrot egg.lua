@@ -475,3 +475,139 @@ Fluent:Notify({
     Duration = 5
 })
 SaveManager:LoadAutoloadConfig()
+-- #############################################
+-- ## BOTÓN EXTERNO PARA MOSTRAR/OCULTAR UI   ##
+-- #############################################
+
+local function createExternalToggleButton()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "CatmioToggleUI"
+    screenGui.Parent = PlayerGui
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    local button = Instance.new("ImageButton")
+    button.Name = "ToggleButton"
+    button.Parent = screenGui
+    button.Size = UDim2.fromOffset(50, 50)
+    button.Position = UDim2.new(0.9, -25, 0.8, -25)
+    button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    button.BorderSizePixel = 0
+    button.Image = "rbxassetid://10709791437"
+    button.ImageColor3 = Color3.fromRGB(255, 255, 255)
+    button.ScaleType = Enum.ScaleType.Fit
+    button.BackgroundTransparency = 0.2
+
+    -- estilo
+    Instance.new("UICorner", button).CornerRadius = UDim.new(1, 0)
+
+    local stroke = Instance.new("UIStroke", button)
+    stroke.Color = Color3.fromRGB(255,255,255)
+    stroke.Thickness = 1.5
+
+    -- tooltip
+    local tooltip = Instance.new("TextLabel")
+    tooltip.Parent = button
+    tooltip.Size = UDim2.fromOffset(120, 20)
+    tooltip.Position = UDim2.new(0.5, -60, -0.5, -25)
+    tooltip.BackgroundTransparency = 0.4
+    tooltip.BackgroundColor3 = Color3.fromRGB(0,0,0)
+    tooltip.TextColor3 = Color3.fromRGB(255,255,255)
+    tooltip.Text = "Mostrar / Ocultar UI"
+    tooltip.Font = Enum.Font.GothamSemibold
+    tooltip.TextSize = 12
+    tooltip.Visible = false
+    Instance.new("UICorner", tooltip).CornerRadius = UDim.new(0,6)
+
+    button.MouseEnter:Connect(function()
+        tooltip.Visible = true
+    end)
+
+    button.MouseLeave:Connect(function()
+        tooltip.Visible = false
+    end)
+
+    -- 🔥 TOGGLE
+    local uiVisible = true
+
+    button.MouseButton1Click:Connect(function()
+        uiVisible = not uiVisible
+
+        -- Método Fluent
+        pcall(function()
+            if uiVisible then
+                if Window.Maximize then
+                    Window:Maximize()
+                end
+            else
+                if Window.Minimize then
+                    Window:Minimize()
+                end
+            end
+        end)
+
+        -- fallback universal
+        pcall(function()
+            if Window.Root then
+                Window.Root.Visible = uiVisible
+            end
+        end)
+
+        button.ImageColor3 = uiVisible and Color3.fromRGB(255,255,255) or Color3.fromRGB(180,180,180)
+    end)
+
+    -- #############################################
+    -- DRAG SUAVE (PC + MÓVIL)
+    -- #############################################
+
+    local dragging = false
+    local dragInput
+    local dragStart
+    local startPos
+
+    button.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 
+        or input.UserInputType == Enum.UserInputType.Touch then
+            
+            dragging = true
+            dragStart = input.Position
+            startPos = button.Position
+            dragInput = input
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    button.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement 
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+
+            local newX = math.clamp(
+                startPos.X.Offset + delta.X,
+                0,
+                workspace.CurrentCamera.ViewportSize.X - 50
+            )
+
+            local newY = math.clamp(
+                startPos.Y.Offset + delta.Y,
+                0,
+                workspace.CurrentCamera.ViewportSize.Y - 50
+            )
+
+            button.Position = UDim2.new(0, newX, 0, newY)
+        end
+    end)
+end
+
+createExternalToggleButton()
