@@ -513,7 +513,7 @@ local function createExternalToggleButton()
     tooltip.BackgroundTransparency = 0.4
     tooltip.BackgroundColor3 = Color3.fromRGB(0,0,0)
     tooltip.TextColor3 = Color3.fromRGB(255,255,255)
-    tooltip.Text = "Mostrar / Ocultar UI"
+    tooltip.Text = "Hide / Show UI"
     tooltip.Font = Enum.Font.GothamSemibold
     tooltip.TextSize = 12
     tooltip.Visible = false
