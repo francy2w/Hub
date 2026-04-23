@@ -67,7 +67,7 @@ local Tabs = {
 -- [[ UI PLACEMENT ]] --
 
 -- Main Tab
-local AutoTPToggle = Tabs.Main:AddToggle("AutoTP", {Title = " hi from catmio", Default = false})
+local AutoTPToggle = Tabs.Main:AddToggle("AutoTP", {Title = "Tp To selected Eggs from Egg Tab", Default = false})
 AutoTPToggle:OnChanged(function() Options.AutoTPEgg = AutoTPToggle.Value end)
 
 local AutoHitVaultToggle = Tabs.Main:AddToggle("AutoHitVault", {Title = "Auto Hit Vault Eggs", Default = false})
