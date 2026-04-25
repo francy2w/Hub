@@ -476,7 +476,7 @@ Fluent:Notify({
 })
 SaveManager:LoadAutoloadConfig()
 -- #############################################
--- ## BOTÓN EXTERNO PARA MOSTRAR/OCULTAR UI   ##
+-- ## BOTÓN EXTERNO (ARRIBA DERECHA + DRAG)   ##
 -- #############################################
 
 local function createExternalToggleButton()
@@ -497,11 +497,16 @@ local function createExternalToggleButton()
     button.Parent = screenGui
     button.Size = UDim2.fromOffset(50, 50)
 
-    -- 🔥 posición en OFFSET (fix móvil)
     local cam = workspace.CurrentCamera
+    local GuiService = game:GetService("GuiService")
+
+    -- 🔥 POSICIÓN ARRIBA DERECHA REAL (SAFE AREA)
+    local inset = GuiService:GetGuiInset()
+    local padding = 10
+
     button.Position = UDim2.fromOffset(
-        cam.ViewportSize.X * 0.9,
-        cam.ViewportSize.Y * 0.8
+        cam.ViewportSize.X - button.Size.X.Offset - padding,
+        inset.Y + padding
     )
 
     button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -613,7 +618,7 @@ local function createExternalToggleButton()
 
             local newY = math.clamp(
                 startPos.Y + delta.Y,
-                0,
+                inset.Y,
                 cam.ViewportSize.Y - button.AbsoluteSize.Y
             )
 
