@@ -541,12 +541,95 @@ local function createExternalToggleButton()
                 end
             else
                 if Window.Minimize then
+-- #############################################
+-- ## BOTÓN EXTERNO PARA MOSTRAR/OCULTAR UI   ##
+-- #############################################
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+local function createExternalToggleButton()
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "CatmioToggleUI"
+    screenGui.Parent = PlayerGui
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    local button = Instance.new("ImageButton")
+    button.Name = "ToggleButton"
+    button.Parent = screenGui
+    button.Size = UDim2.fromOffset(50, 50)
+
+    -- 🔥 posición inicial en OFFSET (IMPORTANTE)
+    local cam = workspace.CurrentCamera
+    button.Position = UDim2.fromOffset(
+        cam.ViewportSize.X * 0.9,
+        cam.ViewportSize.Y * 0.8
+    )
+
+    button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    button.BorderSizePixel = 0
+    button.Image = "rbxassetid://10709791437"
+    button.ImageColor3 = Color3.fromRGB(255, 255, 255)
+    button.ScaleType = Enum.ScaleType.Fit
+    button.BackgroundTransparency = 0.2
+
+    Instance.new("UICorner", button).CornerRadius = UDim.new(1, 0)
+
+    local stroke = Instance.new("UIStroke", button)
+    stroke.Color = Color3.fromRGB(255,255,255)
+    stroke.Thickness = 1.5
+
+    -- #############################################
+    -- TOOLTIP
+    -- #############################################
+
+    local tooltip = Instance.new("TextLabel")
+    tooltip.Parent = button
+    tooltip.Size = UDim2.fromOffset(120, 20)
+    tooltip.Position = UDim2.new(0.5, -60, -0.5, -25)
+    tooltip.BackgroundTransparency = 0.4
+    tooltip.BackgroundColor3 = Color3.fromRGB(0,0,0)
+    tooltip.TextColor3 = Color3.fromRGB(255,255,255)
+    tooltip.Text = "Hide / Show UI"
+    tooltip.Font = Enum.Font.GothamSemibold
+    tooltip.TextSize = 12
+    tooltip.Visible = false
+    Instance.new("UICorner", tooltip).CornerRadius = UDim.new(0,6)
+
+    button.MouseEnter:Connect(function()
+        tooltip.Visible = true
+    end)
+
+    button.MouseLeave:Connect(function()
+        tooltip.Visible = false
+    end)
+
+    -- #############################################
+    -- TOGGLE UI
+    -- #############################################
+
+    local uiVisible = true
+
+    button.MouseButton1Click:Connect(function()
+        uiVisible = not uiVisible
+
+        pcall(function()
+            if uiVisible then
+                if Window.Maximize then
+                    Window:Maximize()
+                end
+            else
+                if Window.Minimize then
                     Window:Minimize()
                 end
             end
         end)
 
-        -- fallback universal
         pcall(function()
             if Window.Root then
                 Window.Root.Visible = uiVisible
@@ -557,11 +640,10 @@ local function createExternalToggleButton()
     end)
 
     -- #############################################
-    -- DRAG SUAVE (PC + MÓVIL)
+    -- DRAG PERFECTO (PC + MOBILE)
     -- #############################################
 
     local dragging = false
-    local dragInput
     local dragStart
     local startPos
 
@@ -571,41 +653,61 @@ local function createExternalToggleButton()
             
             dragging = true
             dragStart = input.Position
-            startPos = button.Position
-            dragInput = input
+            startPos = button.AbsolutePosition
 
             input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
                     dragging = false
+
+                    -- 🔥 SNAP A BORDES (opcional)
+                    local cam = workspace.CurrentCamera
+                    local screenX = cam.ViewportSize.X
+
+                    local middle = screenX / 2
+                    local currentX = button.AbsolutePosition.X
+
+                    local targetX
+                    if currentX < middle then
+                        targetX = 10 -- izquierda
+                    else
+                        targetX = screenX - button.AbsoluteSize.X - 10 -- derecha
+                    end
+
+                    button:TweenPosition(
+                        UDim2.fromOffset(targetX, button.AbsolutePosition.Y),
+                        Enum.EasingDirection.Out,
+                        Enum.EasingStyle.Quad,
+                        0.15,
+                        true
+                    )
                 end
             end)
         end
     end)
 
-    button.InputChanged:Connect(function(input)
+    UserInputService.InputChanged:Connect(function(input)
+        if not dragging then return end
+
         if input.UserInputType == Enum.UserInputType.MouseMovement 
         or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
+            
             local delta = input.Position - dragStart
 
+            local cam = workspace.CurrentCamera
+
             local newX = math.clamp(
-                startPos.X.Offset + delta.X,
+                startPos.X + delta.X,
                 0,
-                workspace.CurrentCamera.ViewportSize.X - 50
+                cam.ViewportSize.X - button.AbsoluteSize.X
             )
 
             local newY = math.clamp(
-                startPos.Y.Offset + delta.Y,
+                startPos.Y + delta.Y,
                 0,
-                workspace.CurrentCamera.ViewportSize.Y - 50
+                cam.ViewportSize.Y - button.AbsoluteSize.Y
             )
 
-            button.Position = UDim2.new(0, newX, 0, newY)
+            button.Position = UDim2.fromOffset(newX, newY)
         end
     end)
 end
